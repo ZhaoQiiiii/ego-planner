@@ -1,19 +1,29 @@
 {
   "configurations": [
-      {
-          "name": "Linux",
-          "includePath": [
-              "${workspaceFolder}/**"
-          ],
-          "defines": [],
-          "compilerPath": "/usr/bin/gcc",
-          "cStandard": "c11",
-          "cppStandard": "c++17",
-          "intelliSenseMode": "clang-x64",
-          "compileCommands": "${workspaceFolder}/build/compile_commands.json"
-      }
+    {
+      "name": "Linux",
+      "includePath": [
+        "/usr/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/wzq/workspace/ego-planner/src/planner/bspline_opt/include/**",
+        "/home/wzq/workspace/ego-planner/src/planner/path_searching/include/**",
+        "/home/wzq/workspace/ego-planner/src/planner/plan_env/include/**",
+        "/home/wzq/workspace/ego-planner/src/planner/plan_manage/include/**",
+        "/home/wzq/workspace/ego-planner/src/planner/traj_utils/include/**",
+        "/home/wzq/workspace/ego-planner/src/uav_simulator/mockamap/include/**",
+        "/home/wzq/workspace/ego-planner/src/uav_simulator/so3_control/include/**",
+        "/home/wzq/workspace/ego-planner/src/uav_simulator/so3_quadrotor_simulator/include/**",
+        "/home/wzq/workspace/ego-planner/src/uav_simulator/Utils/multi_map_server/include/**",
+        "/home/wzq/workspace/ego-planner/src/uav_simulator/Utils/pose_utils/include/**",
+        "/home/wzq/workspace/ego-planner/src/uav_simulator/Utils/quadrotor_msgs/include/**",
+        "/home/wzq/workspace/ego-planner/src/uav_simulator/Utils/uav_utils/include/**"
+      ],
+      "defines": [],
+      "cStandard": "c17",
+      "cppStandard": "gnu++14",
+      "intelliSenseMode": "linux-gcc-x64",
+      "configurationProvider": "ms-vscode.cmake-tools"
+    }
   ],
-
   "version": 4
 }
-

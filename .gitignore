@@ -1,10 +1,42 @@
-.vscode/settings.json
-.catkin_workspace
+.vscode/
+
+# ROS
 build/
 devel/
-files/
-README.md
+install/
+log/
+/.catkin_workspace
 src/CMakeLists.txt
-benchmark_haha.zip
-rebound_planner_BB.zip
 
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
