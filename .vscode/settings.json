@@ -2,6 +2,10 @@
   "files.associations": {
     "cmath": "cpp",
     "typeindex": "cpp",
-    "typeinfo": "cpp"
+    "typeinfo": "cpp",
+    "bitset": "cpp",
+    "memory": "cpp",
+    "random": "cpp",
+    "optional": "cpp"
   }
 }
