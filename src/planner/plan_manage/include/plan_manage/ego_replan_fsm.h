@@ -3,6 +3,8 @@
 
 #include <Eigen/Eigen>
 #include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <iostream>
 #include <nav_msgs/Path.h>
 #include <ros/ros.h>
