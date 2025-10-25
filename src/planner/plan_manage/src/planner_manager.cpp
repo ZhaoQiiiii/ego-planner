@@ -195,7 +195,7 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
   double ts = (start_pt - local_target_pt).norm() > 0.1 ? pp_.ctrl_pt_dist / pp_.max_vel_ * 1.2
                                                         : pp_.ctrl_pt_dist / pp_.max_vel_ * 5;
 
-  //
+  // Get initial path from start to local target
   vector<Eigen::Vector3d> point_set, start_end_derivatives;
   static bool flag_first_call = true, flag_force_polynomial = false;
   bool flag_regenerate = false;
@@ -205,25 +205,28 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
     start_end_derivatives.clear();
     flag_regenerate = false;
 
-    // Init path generated from a min-snap traj by order
-    if (flag_first_call || flag_polyInit || flag_force_polynomial /*|| ( start_pt - local_target_pt ).norm() < 1.0*/) {
+    // Get initial path from min-snap trajectory.
+    if (flag_first_call || flag_polyInit || flag_force_polynomial) {
+
+      // It happens in (get new target) or (replan second or third call) 
 
       flag_first_call = false;
       flag_force_polynomial = false;
-
-      PolynomialTraj gl_traj;
+      // flag_polyInit = have_new_target_ || flag_use_poly_init
 
       double dist = (start_pt - local_target_pt).norm();
       double time = pow(pp_.max_vel_, 2) / pp_.max_acc_ > dist
                         ? sqrt(dist / pp_.max_acc_)
                         : (dist - pow(pp_.max_vel_, 2) / pp_.max_acc_) / pp_.max_vel_ + 2 * pp_.max_vel_ / pp_.max_acc_;
 
-      if (!flag_randomPolyTraj) {
+      PolynomialTraj gl_traj;
+
+      if (!flag_randomPolyTraj) { // Generate min-snap trajectory directly.
         gl_traj = PolynomialTraj::one_segment_traj_gen(start_pt, start_vel, start_acc, local_target_pt,
                                                        local_target_vel, Eigen::Vector3d::Zero(), time);
       }
 
-      else {
+      else { // Generate min-snap trajectory randomly.
         Eigen::Vector3d horizen_dir = ((start_pt - local_target_pt).cross(Eigen::Vector3d(0, 0, 1))).normalized();
         Eigen::Vector3d vertical_dir = ((start_pt - local_target_pt).cross(horizen_dir)).normalized();
         Eigen::Vector3d random_inserted_pt =
@@ -241,14 +244,16 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
         gl_traj = PolynomialTraj::minSnapTraj(pos, start_vel, local_target_vel, start_acc, Eigen::Vector3d::Zero(), t);
       }
 
+      // Sample waypoints from min-snap trajectory
       double t;
       bool flag_too_far;
-      ts *= 1.5; // ts will be divided by 1.5 in the next
+      ts *= 1.5;
 
       do {
         ts /= 1.5;
         point_set.clear();
         flag_too_far = false;
+
         Eigen::Vector3d last_pt = gl_traj.evaluate(0);
         for (t = 0; t < time; t += ts) {
           Eigen::Vector3d pt = gl_traj.evaluate(t);
@@ -259,6 +264,7 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
           last_pt = pt;
           point_set.push_back(pt);
         }
+
       } while (flag_too_far || point_set.size() < 7); // To make sure the initial path has enough points.
 
       t -= ts;
@@ -268,8 +274,9 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
       start_end_derivatives.push_back(gl_traj.evaluateAcc(t));
     }
 
-    // Init path generated from previous trajectory.
-    else {
+    else { // Get initial path from previous trajectory.
+
+      // It happens in (replan first call) 
 
       double t;
       double t_cur = (ros::Time::now() - local_data_.start_time_).toSec();
@@ -307,8 +314,9 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
       }
 
       double sample_length = 0;
-      double cps_dist = pp_.ctrl_pt_dist * 1.5; // cps_dist will be divided by 1.5 in the next
+      double cps_dist = pp_.ctrl_pt_dist * 1.5; 
       size_t id = 0;
+
       do {
         cps_dist /= 1.5;
         point_set.clear();
@@ -321,8 +329,11 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
                                 (pseudo_arc_length[id + 1] - sample_length) /
                                     (pseudo_arc_length[id + 1] - pseudo_arc_length[id]) * segment_point[id]);
             sample_length += cps_dist;
-          } else
+          }
+
+          else {
             id++;
+          }
         }
         point_set.push_back(local_target_pt);
       } while (point_set.size() < 7); // If the start point is very close to end point, this will help
@@ -332,27 +343,27 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
       start_end_derivatives.push_back(local_data_.acceleration_traj_.evaluateDeBoorT(t_cur));
       start_end_derivatives.push_back(Eigen::Vector3d::Zero());
 
-      // The initial path is unnormally too long!
-      if (point_set.size() > pp_.planning_horizen_ / pp_.ctrl_pt_dist * 3) {
+      if (point_set.size() > pp_.planning_horizen_ / pp_.ctrl_pt_dist * 3) { // Path is unnormally too long!
         flag_force_polynomial = true;
         flag_regenerate = true;
       }
     }
   } while (flag_regenerate);
 
+  // Transform initial path to b-spline
   Eigen::MatrixXd ctrl_pts;
   UniformBspline::parameterizeToBspline(ts, point_set, start_end_derivatives, ctrl_pts);
 
+  // Find pv pairs for each ctrl points
   vector<vector<Eigen::Vector3d>> a_star_pathes;
   a_star_pathes = bspline_optimizer_rebound_->initControlPoints(ctrl_pts, true);
 
   t_init = ros::Time::now() - t_start;
+  t_start = ros::Time::now();
 
   static int vis_id = 0;
   visualization_->displayInitPathList(point_set, 0.2, 0);
   visualization_->displayAStarList(a_star_pathes, vis_id);
-
-  t_start = ros::Time::now();
 
   //
   // STEP 2: Optimize
@@ -361,11 +372,9 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
   bool flag_step_1_success = bspline_optimizer_rebound_->BsplineOptimizeTrajRebound(ctrl_pts, ts);
   cout << "first_optimize_step_success=" << flag_step_1_success << endl;
   if (!flag_step_1_success) {
-    // visualization_->displayOptimalList( ctrl_pts, vis_id );
     continous_failures_count_++;
     return false;
   }
-  // visualization_->displayOptimalList( ctrl_pts, vis_id );
 
   t_opt = ros::Time::now() - t_start;
   t_start = ros::Time::now();

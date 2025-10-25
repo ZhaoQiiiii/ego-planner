@@ -101,7 +101,6 @@ void EGOReplanFSM::execFSMCallback(const ros::TimerEvent &e) {
     // start_yaw_(0) = atan2(rot_x(1), rot_x(0));
     // start_yaw_(1) = start_yaw_(2) = 0.0;
 
-    // Main Planning
     bool success = callReboundReplan(true, !timesOfConsecutiveStateCalls().first == 1);
     if (success) {
       changeFSMExecState(EXEC_TRAJ, "FSM");
@@ -124,7 +123,6 @@ void EGOReplanFSM::execFSMCallback(const ros::TimerEvent &e) {
 
     Eigen::Vector3d pos = info->position_traj_.evaluateDeBoorT(t_cur);
 
-    /* && (end_pt_ - pos).norm() < 0.5 */
     if (t_cur > info->duration_ - 1e-2) {
       have_target_ = false;
       changeFSMExecState(WAIT_TARGET, "FSM");
@@ -408,11 +406,11 @@ bool EGOReplanFSM::callEmergencyStop(Eigen::Vector3d stop_pos) {
 
 bool EGOReplanFSM::planFromCurrentTraj() {
 
-  LocalTrajData *info = &planner_manager_->local_data_;
-  ros::Time time_now = ros::Time::now();
-  double t_cur = (time_now - info->start_time_).toSec();
+  // Plan new trajectory from current state if trigger replanning
 
-  // cout << "info->velocity_traj_=" << info->velocity_traj_.get_control_points() << endl;
+  ros::Time time_now = ros::Time::now();
+  LocalTrajData *info = &planner_manager_->local_data_;
+  double t_cur = (time_now - info->start_time_).toSec();
 
   start_pt_ = info->position_traj_.evaluateDeBoorT(t_cur);
   start_vel_ = info->velocity_traj_.evaluateDeBoorT(t_cur);

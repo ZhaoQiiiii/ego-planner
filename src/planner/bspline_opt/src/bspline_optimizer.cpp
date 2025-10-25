@@ -4,30 +4,27 @@
 
 namespace ego_planner {
 
+//
+// Main API
+//
+
 void BsplineOptimizer::setParam(ros::NodeHandle &nh) {
   nh.param("optimization/lambda_smooth", lambda1_, -1.0);
   nh.param("optimization/lambda_collision", lambda2_, -1.0);
   nh.param("optimization/lambda_feasibility", lambda3_, -1.0);
   nh.param("optimization/lambda_fitness", lambda4_, -1.0);
-
   nh.param("optimization/dist0", dist0_, -1.0);
   nh.param("optimization/max_vel", max_vel_, -1.0);
   nh.param("optimization/max_acc", max_acc_, -1.0);
-
   nh.param("optimization/order", order_, 3);
 }
 
 void BsplineOptimizer::setEnvironment(const GridMap::Ptr &env) { this->grid_map_ = env; }
 
-void BsplineOptimizer::setControlPoints(const Eigen::MatrixXd &points) { cps_.points = points; }
-
-void BsplineOptimizer::setBsplineInterval(const double &ts) { bspline_interval_ = ts; }
-
-/* This function is very similar to check_collision_and_rebound().
- * It was written separately, just because I did it once and it has been running stably since March 2020.
- * But I will merge then someday.*/
 std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Eigen::MatrixXd &init_points,
                                                                               bool flag_first_init /*= true*/) {
+
+  //
 
   if (flag_first_init) {
     cps_.clearance = dist0_;
@@ -35,7 +32,7 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
     cps_.points = init_points;
   }
 
-  /*** Segment the initial trajectory according to obstacles ***/
+  // Segment the initial trajectory according to obstacles
   constexpr int ENOUGH_INTERVAL = 2;
   double step_size = grid_map_->getResolution() /
                      ((init_points.col(0) - init_points.rightCols(1)).norm() / (init_points.cols() - 1)) / 2;
@@ -82,7 +79,7 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
     }
   }
 
-  /*** a star search ***/
+  // Astar search
   vector<vector<Eigen::Vector3d>> a_star_pathes;
   for (size_t i = 0; i < segment_ids.size(); ++i) {
     // cout << "in=" << in.transpose() << " out=" << out.transpose() << endl;
@@ -95,7 +92,7 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
     }
   }
 
-  /*** calculate bounds ***/
+  // calculate bounds
   int id_low_bound, id_up_bound;
   vector<std::pair<int, int>> bounds(segment_ids.size());
   for (size_t i = 0; i < segment_ids.size(); i++) {
@@ -108,12 +105,16 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
       } else {
         id_up_bound = init_points.cols() - order_ - 1;
       }
-    } else if (i == segment_ids.size() - 1) // last segment, i != 0 here
+    }
+
+    else if (i == segment_ids.size() - 1) // last segment, i != 0 here
     {
       id_low_bound =
           (int)(((segment_ids[i].first + segment_ids[i - 1].second) + 1.0f) / 2); // id_low_bound : +1.0f ceil()
       id_up_bound = init_points.cols() - order_ - 1;
-    } else {
+    }
+
+    else {
       id_low_bound =
           (int)(((segment_ids[i].first + segment_ids[i - 1].second) + 1.0f) / 2); // id_low_bound : +1.0f ceil()
       id_up_bound = (int)(((segment_ids[i].second + segment_ids[i + 1].first) - 1.0f) / 2); // id_up_bound : -1.0f fix()
@@ -128,10 +129,11 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
   //   cout << bounds[j].first << "  " << bounds[j].second << endl;
   // }
 
-  /*** Adjust segment length ***/
+  // Adjust segment length
   vector<std::pair<int, int>> final_segment_ids(segment_ids.size());
-  constexpr double MINIMUM_PERCENT =
-      0.0; // Each segment is guaranteed to have sufficient points to generate sufficient thrust
+
+  // Each segment is guaranteed to have sufficient points to generate sufficient thrust
+  constexpr double MINIMUM_PERCENT = 0.0;
   int minimum_points = round(init_points.cols() * MINIMUM_PERCENT), num_points;
   for (size_t i = 0; i < segment_ids.size(); i++) {
     /*** Adjust segment length ***/
@@ -147,7 +149,9 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
       final_segment_ids[i].second = segment_ids[i].second + add_points_each_side <= bounds[i].second
                                         ? segment_ids[i].second + add_points_each_side
                                         : bounds[i].second;
-    } else {
+    }
+
+    else {
       final_segment_ids[i].first = segment_ids[i].first;
       final_segment_ids[i].second = segment_ids[i].second;
     }
@@ -156,7 +160,7 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
     // final_segment_ids[i].second << endl;
   }
 
-  /*** Assign data to each segment ***/
+  // Assign data to each segment
   for (size_t i = 0; i < segment_ids.size(); i++) {
     // step 1
     for (int j = final_segment_ids[i].first; j <= final_segment_ids[i].second; ++j)
@@ -179,8 +183,7 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
 
         val = (a_star_pathes[i][Astar_id] - cps_.points.col(j)).dot(ctrl_pts_law);
 
-        if (val * last_val <= 0 && (abs(val) > 0 || abs(last_val) > 0)) // val = last_val = 0.0 is not allowed
-        {
+        if (val * last_val <= 0 && (abs(val) > 0 || abs(last_val) > 0)) { // val = last_val = 0.0 is not allowed
           intersection_point = a_star_pathes[i][Astar_id] +
                                ((a_star_pathes[i][Astar_id] - a_star_pathes[i][last_Astar_id]) *
                                 (ctrl_pts_law.dot(cps_.points.col(j) - a_star_pathes[i][Astar_id]) /
@@ -256,7 +259,7 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
       }
     }
 
-    // step 3
+    // STEP 3
     if (got_intersection_id >= 0) {
       for (int j = got_intersection_id + 1; j <= final_segment_ids[i].second; ++j)
         if (!cps_.flag_temp[j]) {
@@ -278,33 +281,26 @@ std::vector<std::vector<Eigen::Vector3d>> BsplineOptimizer::initControlPoints(Ei
   return a_star_pathes;
 }
 
-int BsplineOptimizer::earlyExit(void *func_data, const double *x, const double *g, const double fx, const double xnorm,
-                                const double gnorm, const double step, int n, int k, int ls) {
-  BsplineOptimizer *opt = reinterpret_cast<BsplineOptimizer *>(func_data);
-  // cout << "k=" << k << endl;
-  // cout << "opt->flag_continue_to_optimize_=" << opt->flag_continue_to_optimize_ << endl;
-  return (opt->force_stop_type_ == STOP_FOR_ERROR || opt->force_stop_type_ == STOP_FOR_REBOUND);
+bool BsplineOptimizer::BsplineOptimizeTrajRebound(Eigen::MatrixXd &optimal_points, double ts) {
+  setBsplineInterval(ts);
+  bool flag_success = rebound_optimize();
+  optimal_points = cps_.points;
+  return flag_success;
 }
 
-double BsplineOptimizer::costFunctionRebound(void *func_data, const double *x, double *grad, const int n) {
-  BsplineOptimizer *opt = reinterpret_cast<BsplineOptimizer *>(func_data);
+bool BsplineOptimizer::BsplineOptimizeTrajRefine(const Eigen::MatrixXd &init_points, const double ts,
+                                                 Eigen::MatrixXd &optimal_points) {
 
-  double cost;
-  opt->combineCostRebound(x, grad, cost, n);
-
-  opt->iter_num_ += 1;
-  return cost;
+  setControlPoints(init_points);
+  setBsplineInterval(ts);
+  bool flag_success = refine_optimize();
+  optimal_points = cps_.points;
+  return flag_success;
 }
 
-double BsplineOptimizer::costFunctionRefine(void *func_data, const double *x, double *grad, const int n) {
-  BsplineOptimizer *opt = reinterpret_cast<BsplineOptimizer *>(func_data);
-
-  double cost;
-  opt->combineCostRefine(x, grad, cost, n);
-
-  opt->iter_num_ += 1;
-  return cost;
-}
+//
+// Cost Function
+//
 
 void BsplineOptimizer::calcDistanceCostRebound(const Eigen::MatrixXd &q, double &cost, Eigen::MatrixXd &gradient,
                                                int iter_num, double smoothness_cost) {
@@ -735,24 +731,71 @@ bool BsplineOptimizer::check_collision_and_rebound(void) {
   return false;
 }
 
-bool BsplineOptimizer::BsplineOptimizeTrajRebound(Eigen::MatrixXd &optimal_points, double ts) {
-  setBsplineInterval(ts);
-  bool flag_success = rebound_optimize();
-  optimal_points = cps_.points;
-  return flag_success;
+//
+// Helper Function
+//
+
+double BsplineOptimizer::costFunctionRebound(void *func_data, const double *x, double *grad, const int n) {
+  BsplineOptimizer *opt = reinterpret_cast<BsplineOptimizer *>(func_data);
+  double cost;
+  opt->combineCostRebound(x, grad, cost, n);
+  opt->iter_num_ += 1;
+  return cost;
 }
 
-bool BsplineOptimizer::BsplineOptimizeTrajRefine(const Eigen::MatrixXd &init_points, const double ts,
-                                                 Eigen::MatrixXd &optimal_points) {
+double BsplineOptimizer::costFunctionRefine(void *func_data, const double *x, double *grad, const int n) {
+  BsplineOptimizer *opt = reinterpret_cast<BsplineOptimizer *>(func_data);
+  double cost;
+  opt->combineCostRefine(x, grad, cost, n);
+  opt->iter_num_ += 1;
+  return cost;
+}
 
-  setControlPoints(init_points);
-  setBsplineInterval(ts);
+void BsplineOptimizer::combineCostRebound(const double *x, double *grad, double &f_combine, const int n) {
 
-  bool flag_success = refine_optimize();
+  memcpy(cps_.points.data() + 3 * order_, x, n * sizeof(x[0]));
 
-  optimal_points = cps_.points;
+  /* ---------- evaluate cost and gradient ---------- */
+  double f_smoothness, f_distance, f_feasibility;
 
-  return flag_success;
+  Eigen::MatrixXd g_smoothness = Eigen::MatrixXd::Zero(3, cps_.size);
+  Eigen::MatrixXd g_distance = Eigen::MatrixXd::Zero(3, cps_.size);
+  Eigen::MatrixXd g_feasibility = Eigen::MatrixXd::Zero(3, cps_.size);
+
+  calcSmoothnessCost(cps_.points, f_smoothness, g_smoothness);
+  calcDistanceCostRebound(cps_.points, f_distance, g_distance, iter_num_, f_smoothness);
+  calcFeasibilityCost(cps_.points, f_feasibility, g_feasibility);
+
+  f_combine = lambda1_ * f_smoothness + new_lambda2_ * f_distance + lambda3_ * f_feasibility;
+  // printf("origin %f %f %f %f\n", f_smoothness, f_distance, f_feasibility, f_combine);
+
+  Eigen::MatrixXd grad_3D = lambda1_ * g_smoothness + new_lambda2_ * g_distance + lambda3_ * g_feasibility;
+  memcpy(grad, grad_3D.data() + 3 * order_, n * sizeof(grad[0]));
+}
+
+void BsplineOptimizer::combineCostRefine(const double *x, double *grad, double &f_combine, const int n) {
+
+  memcpy(cps_.points.data() + 3 * order_, x, n * sizeof(x[0]));
+
+  /* ---------- evaluate cost and gradient ---------- */
+  double f_smoothness, f_fitness, f_feasibility;
+
+  Eigen::MatrixXd g_smoothness = Eigen::MatrixXd::Zero(3, cps_.points.cols());
+  Eigen::MatrixXd g_fitness = Eigen::MatrixXd::Zero(3, cps_.points.cols());
+  Eigen::MatrixXd g_feasibility = Eigen::MatrixXd::Zero(3, cps_.points.cols());
+
+  // time_satrt = ros::Time::now();
+
+  calcSmoothnessCost(cps_.points, f_smoothness, g_smoothness);
+  calcFitnessCost(cps_.points, f_fitness, g_fitness);
+  calcFeasibilityCost(cps_.points, f_feasibility, g_feasibility);
+
+  /* ---------- convert to solver format...---------- */
+  f_combine = lambda1_ * f_smoothness + lambda4_ * f_fitness + lambda3_ * f_feasibility;
+  // printf("origin %f %f %f %f\n", f_smoothness, f_fitness, f_feasibility, f_combine);
+
+  Eigen::MatrixXd grad_3D = lambda1_ * g_smoothness + lambda4_ * g_fitness + lambda3_ * g_feasibility;
+  memcpy(grad, grad_3D.data() + 3 * order_, n * sizeof(grad[0]));
 }
 
 bool BsplineOptimizer::rebound_optimize() {
@@ -762,14 +805,16 @@ bool BsplineOptimizer::rebound_optimize() {
   variable_num_ = 3 * (end_id - start_id);
   double final_cost;
 
-  ros::Time t0 = ros::Time::now(), t1, t2;
   int restart_nums = 0, rebound_times = 0;
-  ;
+
   bool flag_force_return, flag_occ, success;
   new_lambda2_ = lambda2_;
   constexpr int MAX_RESART_NUMS_SET = 3;
+
+  ros::Time t0 = ros::Time::now(), t1, t2;
+
   do {
-    /* ---------- prepare ---------- */
+    // Prepare
     min_cost_ = std::numeric_limits<double>::max();
     iter_num_ = 0;
     flag_force_return = false;
@@ -785,7 +830,7 @@ bool BsplineOptimizer::rebound_optimize() {
     lbfgs_params.max_iterations = 200;
     lbfgs_params.g_epsilon = 0.01;
 
-    /* ---------- optimize ---------- */
+    // L-BFGS Optimize
     t1 = ros::Time::now();
     int result = lbfgs::lbfgs_optimize(variable_num_, q, &final_cost, BsplineOptimizer::costFunctionRebound, NULL,
                                        BsplineOptimizer::earlyExit, this, &lbfgs_params);
@@ -793,7 +838,7 @@ bool BsplineOptimizer::rebound_optimize() {
     double time_ms = (t2 - t1).toSec() * 1000;
     double total_time_ms = (t2 - t0).toSec() * 1000;
 
-    /* ---------- success temporary, check collision again ---------- */
+    // Success temporary, check collision again
     if (result == lbfgs::LBFGS_CONVERGENCE || result == lbfgs::LBFGSERR_MAXIMUMITERATION ||
         result == lbfgs::LBFGS_ALREADY_MINIMIZED || result == lbfgs::LBFGS_STOP) {
       // ROS_WARN("Solver error in planning!, return = %s", lbfgs::lbfgs_strerror(result));
@@ -804,14 +849,15 @@ bool BsplineOptimizer::rebound_optimize() {
       traj.getTimeSpan(tm, tmp);
       double t_step =
           (tmp - tm) / ((traj.evaluateDeBoorT(tmp) - traj.evaluateDeBoorT(tm)).norm() / grid_map_->getResolution());
-      for (double t = tm; t < tmp * 2 / 3; t += t_step) // Only check the closest 2/3 partition of the whole trajectory.
-      {
+
+      for (double t = tm; t < tmp * 2 / 3; t += t_step) {
+        // Only check the closest 2/3 partition of the whole trajectory.
         flag_occ = grid_map_->getInflateOccupancy(traj.evaluateDeBoorT(t));
         if (flag_occ) {
           // cout << "hit_obs, t=" << t << " P=" << traj.evaluateDeBoorT(t).transpose() << endl;
 
-          if (t <= bspline_interval_) // First 3 control points in obstacles!
-          {
+          if (t <= bspline_interval_) {
+            // First 3 control points in obstacles!
             cout << cps_.points.col(1).transpose() << "\n"
                  << cps_.points.col(2).transpose() << "\n"
                  << cps_.points.col(3).transpose() << "\n"
@@ -828,19 +874,24 @@ bool BsplineOptimizer::rebound_optimize() {
         printf("\033[32miter(+1)=%d,time(ms)=%5.3f,total_t(ms)=%5.3f,cost=%5.3f\n\033[0m", iter_num_, time_ms,
                total_time_ms, final_cost);
         success = true;
-      } else // restart
-      {
+      }
+
+      else {
+        // restart
         restart_nums++;
         initControlPoints(cps_.points, false);
         new_lambda2_ *= 2;
-
         printf("\033[32miter(+1)=%d,time(ms)=%5.3f,keep optimizing\n\033[0m", iter_num_, time_ms);
       }
-    } else if (result == lbfgs::LBFGSERR_CANCELED) {
+    }
+
+    else if (result == lbfgs::LBFGSERR_CANCELED) {
       flag_force_return = true;
       rebound_times++;
       cout << "iter=" << iter_num_ << ",time(ms)=" << time_ms << ",rebound." << endl;
-    } else {
+    }
+
+    else {
       ROS_WARN("Solver error. Return = %d, %s. Skip this planning.", result, lbfgs::lbfgs_strerror(result));
       // while (ros::ok());
     }
@@ -915,51 +966,16 @@ bool BsplineOptimizer::refine_optimize() {
   return flag_safe;
 }
 
-void BsplineOptimizer::combineCostRebound(const double *x, double *grad, double &f_combine, const int n) {
+void BsplineOptimizer::setControlPoints(const Eigen::MatrixXd &points) { cps_.points = points; }
 
-  memcpy(cps_.points.data() + 3 * order_, x, n * sizeof(x[0]));
+void BsplineOptimizer::setBsplineInterval(const double &ts) { bspline_interval_ = ts; }
 
-  /* ---------- evaluate cost and gradient ---------- */
-  double f_smoothness, f_distance, f_feasibility;
-
-  Eigen::MatrixXd g_smoothness = Eigen::MatrixXd::Zero(3, cps_.size);
-  Eigen::MatrixXd g_distance = Eigen::MatrixXd::Zero(3, cps_.size);
-  Eigen::MatrixXd g_feasibility = Eigen::MatrixXd::Zero(3, cps_.size);
-
-  calcSmoothnessCost(cps_.points, f_smoothness, g_smoothness);
-  calcDistanceCostRebound(cps_.points, f_distance, g_distance, iter_num_, f_smoothness);
-  calcFeasibilityCost(cps_.points, f_feasibility, g_feasibility);
-
-  f_combine = lambda1_ * f_smoothness + new_lambda2_ * f_distance + lambda3_ * f_feasibility;
-  // printf("origin %f %f %f %f\n", f_smoothness, f_distance, f_feasibility, f_combine);
-
-  Eigen::MatrixXd grad_3D = lambda1_ * g_smoothness + new_lambda2_ * g_distance + lambda3_ * g_feasibility;
-  memcpy(grad, grad_3D.data() + 3 * order_, n * sizeof(grad[0]));
-}
-
-void BsplineOptimizer::combineCostRefine(const double *x, double *grad, double &f_combine, const int n) {
-
-  memcpy(cps_.points.data() + 3 * order_, x, n * sizeof(x[0]));
-
-  /* ---------- evaluate cost and gradient ---------- */
-  double f_smoothness, f_fitness, f_feasibility;
-
-  Eigen::MatrixXd g_smoothness = Eigen::MatrixXd::Zero(3, cps_.points.cols());
-  Eigen::MatrixXd g_fitness = Eigen::MatrixXd::Zero(3, cps_.points.cols());
-  Eigen::MatrixXd g_feasibility = Eigen::MatrixXd::Zero(3, cps_.points.cols());
-
-  // time_satrt = ros::Time::now();
-
-  calcSmoothnessCost(cps_.points, f_smoothness, g_smoothness);
-  calcFitnessCost(cps_.points, f_fitness, g_fitness);
-  calcFeasibilityCost(cps_.points, f_feasibility, g_feasibility);
-
-  /* ---------- convert to solver format...---------- */
-  f_combine = lambda1_ * f_smoothness + lambda4_ * f_fitness + lambda3_ * f_feasibility;
-  // printf("origin %f %f %f %f\n", f_smoothness, f_fitness, f_feasibility, f_combine);
-
-  Eigen::MatrixXd grad_3D = lambda1_ * g_smoothness + lambda4_ * g_fitness + lambda3_ * g_feasibility;
-  memcpy(grad, grad_3D.data() + 3 * order_, n * sizeof(grad[0]));
+int BsplineOptimizer::earlyExit(void *func_data, const double *x, const double *g, const double fx, const double xnorm,
+                                const double gnorm, const double step, int n, int k, int ls) {
+  BsplineOptimizer *opt = reinterpret_cast<BsplineOptimizer *>(func_data);
+  // cout << "k=" << k << endl;
+  // cout << "opt->flag_continue_to_optimize_=" << opt->flag_continue_to_optimize_ << endl;
+  return (opt->force_stop_type_ == STOP_FOR_ERROR || opt->force_stop_type_ == STOP_FOR_REBOUND);
 }
 
 } // namespace ego_planner
