@@ -1,6 +1,6 @@
 #include "bspline_opt/uniform_bspline.h"
-#include "nav_msgs/Odometry.h"
 #include "ego_planner/Bspline.h"
+#include "nav_msgs/Odometry.h"
 #include "quadrotor_msgs/PositionCommand.h"
 #include "std_msgs/Empty.h"
 #include "visualization_msgs/Marker.h"
@@ -24,20 +24,17 @@ int traj_id_;
 double last_yaw_, last_yaw_dot_;
 double time_forward_;
 
-void bsplineCallback(ego_planner::BsplineConstPtr msg)
-{
+void bsplineCallback(ego_planner::BsplineConstPtr msg) {
   // parse pos traj
 
   Eigen::MatrixXd pos_pts(3, msg->pos_pts.size());
 
   Eigen::VectorXd knots(msg->knots.size());
-  for (size_t i = 0; i < msg->knots.size(); ++i)
-  {
+  for (size_t i = 0; i < msg->knots.size(); ++i) {
     knots(i) = msg->knots[i];
   }
 
-  for (size_t i = 0; i < msg->pos_pts.size(); ++i)
-  {
+  for (size_t i = 0; i < msg->pos_pts.size(); ++i) {
     pos_pts(0, i) = msg->pos_pts[i].x;
     pos_pts(1, i) = msg->pos_pts[i].y;
     pos_pts(2, i) = msg->pos_pts[i].z;
@@ -53,7 +50,7 @@ void bsplineCallback(ego_planner::BsplineConstPtr msg)
   //   yaw_pts(i, 0) = msg->yaw_pts[i];
   // }
 
-  //UniformBspline yaw_traj(yaw_pts, msg->order, msg->yaw_dt);
+  // UniformBspline yaw_traj(yaw_pts, msg->order, msg->yaw_dt);
 
   start_time_ = msg->start_time;
   traj_id_ = msg->traj_id;
@@ -68,8 +65,8 @@ void bsplineCallback(ego_planner::BsplineConstPtr msg)
   receive_traj_ = true;
 }
 
-std::pair<double, double> calculate_yaw(double t_cur, Eigen::Vector3d &pos, ros::Time &time_now, ros::Time &time_last)
-{
+std::pair<double, double> calculate_yaw(double t_cur, Eigen::Vector3d &pos, ros::Time &time_now,
+                                        ros::Time &time_last) {
   constexpr double PI = 3.1415926;
   constexpr double YAW_DOT_MAX_PER_SEC = PI;
   // constexpr double YAW_DOT_DOT_MAX_PER_SEC = PI;
@@ -77,67 +74,53 @@ std::pair<double, double> calculate_yaw(double t_cur, Eigen::Vector3d &pos, ros:
   double yaw = 0;
   double yawdot = 0;
 
-  Eigen::Vector3d dir = t_cur + time_forward_ <= traj_duration_ ? traj_[0].evaluateDeBoorT(t_cur + time_forward_) - pos : traj_[0].evaluateDeBoorT(traj_duration_) - pos;
+  Eigen::Vector3d dir = t_cur + time_forward_ <= traj_duration_
+                            ? traj_[0].evaluateDeBoorT(t_cur + time_forward_) - pos
+                            : traj_[0].evaluateDeBoorT(traj_duration_) - pos;
   double yaw_temp = dir.norm() > 0.1 ? atan2(dir(1), dir(0)) : last_yaw_;
   double max_yaw_change = YAW_DOT_MAX_PER_SEC * (time_now - time_last).toSec();
-  if (yaw_temp - last_yaw_ > PI)
-  {
-    if (yaw_temp - last_yaw_ - 2 * PI < -max_yaw_change)
-    {
+  if (yaw_temp - last_yaw_ > PI) {
+    if (yaw_temp - last_yaw_ - 2 * PI < -max_yaw_change) {
       yaw = last_yaw_ - max_yaw_change;
       if (yaw < -PI)
         yaw += 2 * PI;
 
       yawdot = -YAW_DOT_MAX_PER_SEC;
-    }
-    else
-    {
+    } else {
       yaw = yaw_temp;
       if (yaw - last_yaw_ > PI)
         yawdot = -YAW_DOT_MAX_PER_SEC;
       else
         yawdot = (yaw_temp - last_yaw_) / (time_now - time_last).toSec();
     }
-  }
-  else if (yaw_temp - last_yaw_ < -PI)
-  {
-    if (yaw_temp - last_yaw_ + 2 * PI > max_yaw_change)
-    {
+  } else if (yaw_temp - last_yaw_ < -PI) {
+    if (yaw_temp - last_yaw_ + 2 * PI > max_yaw_change) {
       yaw = last_yaw_ + max_yaw_change;
       if (yaw > PI)
         yaw -= 2 * PI;
 
       yawdot = YAW_DOT_MAX_PER_SEC;
-    }
-    else
-    {
+    } else {
       yaw = yaw_temp;
       if (yaw - last_yaw_ < -PI)
         yawdot = YAW_DOT_MAX_PER_SEC;
       else
         yawdot = (yaw_temp - last_yaw_) / (time_now - time_last).toSec();
     }
-  }
-  else
-  {
-    if (yaw_temp - last_yaw_ < -max_yaw_change)
-    {
+  } else {
+    if (yaw_temp - last_yaw_ < -max_yaw_change) {
       yaw = last_yaw_ - max_yaw_change;
       if (yaw < -PI)
         yaw += 2 * PI;
 
       yawdot = -YAW_DOT_MAX_PER_SEC;
-    }
-    else if (yaw_temp - last_yaw_ > max_yaw_change)
-    {
+    } else if (yaw_temp - last_yaw_ > max_yaw_change) {
       yaw = last_yaw_ + max_yaw_change;
       if (yaw > PI)
         yaw -= 2 * PI;
 
       yawdot = YAW_DOT_MAX_PER_SEC;
-    }
-    else
-    {
+    } else {
       yaw = yaw_temp;
       if (yaw - last_yaw_ > PI)
         yawdot = -YAW_DOT_MAX_PER_SEC;
@@ -160,8 +143,7 @@ std::pair<double, double> calculate_yaw(double t_cur, Eigen::Vector3d &pos, ros:
   return yaw_yawdot;
 }
 
-void cmdCallback(const ros::TimerEvent &e)
-{
+void cmdCallback(const ros::TimerEvent &e) {
   /* no publishing before receive traj_ */
   if (!receive_traj_)
     return;
@@ -169,12 +151,12 @@ void cmdCallback(const ros::TimerEvent &e)
   ros::Time time_now = ros::Time::now();
   double t_cur = (time_now - start_time_).toSec();
 
-  Eigen::Vector3d pos(Eigen::Vector3d::Zero()), vel(Eigen::Vector3d::Zero()), acc(Eigen::Vector3d::Zero()), pos_f;
+  Eigen::Vector3d pos(Eigen::Vector3d::Zero()), vel(Eigen::Vector3d::Zero()),
+      acc(Eigen::Vector3d::Zero()), pos_f;
   std::pair<double, double> yaw_yawdot(0, 0);
 
   static ros::Time time_last = ros::Time::now();
-  if (t_cur < traj_duration_ && t_cur >= 0.0)
-  {
+  if (t_cur < traj_duration_ && t_cur >= 0.0) {
     pos = traj_[0].evaluateDeBoorT(t_cur);
     vel = traj_[1].evaluateDeBoorT(t_cur);
     acc = traj_[2].evaluateDeBoorT(t_cur);
@@ -185,9 +167,7 @@ void cmdCallback(const ros::TimerEvent &e)
 
     double tf = min(traj_duration_, t_cur + 2.0);
     pos_f = traj_[0].evaluateDeBoorT(tf);
-  }
-  else if (t_cur >= traj_duration_)
-  {
+  } else if (t_cur >= traj_duration_) {
     /* hover when finish traj_ */
     pos = traj_[0].evaluateDeBoorT(traj_duration_);
     vel.setZero();
@@ -197,9 +177,7 @@ void cmdCallback(const ros::TimerEvent &e)
     yaw_yawdot.second = 0;
 
     pos_f = pos;
-  }
-  else
-  {
+  } else {
     cout << "[Traj server]: invalid time." << endl;
   }
   time_last = time_now;
@@ -229,8 +207,7 @@ void cmdCallback(const ros::TimerEvent &e)
   pos_cmd_pub.publish(cmd);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   ros::init(argc, argv, "traj_server");
   ros::NodeHandle node;
   ros::NodeHandle nh("~");

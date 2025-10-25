@@ -1,17 +1,17 @@
-// #include <fstream>
 #include <plan_manage/planner_manager.h>
 #include <thread>
 
 namespace ego_planner {
 
-// SECTION interfaces for setup and query
-
 EGOPlannerManager::EGOPlannerManager() {}
 
 EGOPlannerManager::~EGOPlannerManager() { std::cout << "des manager" << std::endl; }
 
+//
+// Main API
+//
+
 void EGOPlannerManager::initPlanModules(ros::NodeHandle &nh, PlanningVisualization::Ptr vis) {
-  /* read algorithm parameters */
 
   nh.param("manager/max_vel", pp_.max_vel_, -1.0);
   nh.param("manager/max_acc", pp_.max_acc_, -1.0);
@@ -33,21 +33,15 @@ void EGOPlannerManager::initPlanModules(ros::NodeHandle &nh, PlanningVisualizati
   visualization_ = vis;
 }
 
-// !SECTION
-
-// SECTION rebond replanning
-
-bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d start_vel,
-                                      Eigen::Vector3d start_acc, Eigen::Vector3d local_target_pt,
-                                      Eigen::Vector3d local_target_vel, bool flag_polyInit,
-                                      bool flag_randomPolyTraj) {
+bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d start_vel, Eigen::Vector3d start_acc,
+                                      Eigen::Vector3d local_target_pt, Eigen::Vector3d local_target_vel,
+                                      bool flag_polyInit, bool flag_randomPolyTraj) {
 
   static int count = 0;
-  std::cout << endl
-            << "[rebo replan]: -------------------------------------" << count++ << std::endl;
+  std::cout << endl << "[rebo replan]: -------------------------------------" << count++ << std::endl;
   cout.precision(3);
-  cout << "start: " << start_pt.transpose() << ", " << start_vel.transpose()
-       << "\ngoal:" << local_target_pt.transpose() << ", " << local_target_vel.transpose() << endl;
+  cout << "start: " << start_pt.transpose() << ", " << start_vel.transpose() << "\ngoal:" << local_target_pt.transpose()
+       << ", " << local_target_vel.transpose() << endl;
 
   if ((start_pt - local_target_pt).norm() < 0.2) {
     cout << "Close to goal" << endl;
@@ -59,11 +53,10 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
   ros::Duration t_init, t_opt, t_refine;
 
   /*** STEP 1: INIT ***/
-  double ts =
-      (start_pt - local_target_pt).norm() > 0.1
-          ? pp_.ctrl_pt_dist / pp_.max_vel_ * 1.2
-          : pp_.ctrl_pt_dist / pp_.max_vel_ * 5; // pp_.ctrl_pt_dist / pp_.max_vel_ is too tense,
-                                                 // and will surely exceed the acc/vel limits
+  double ts = (start_pt - local_target_pt).norm() > 0.1
+                  ? pp_.ctrl_pt_dist / pp_.max_vel_ * 1.2
+                  : pp_.ctrl_pt_dist / pp_.max_vel_ * 5; // pp_.ctrl_pt_dist / pp_.max_vel_ is too tense,
+                                                         // and will surely exceed the acc/vel limits
   vector<Eigen::Vector3d> point_set, start_end_derivatives;
   static bool flag_first_call = true, flag_force_polynomial = false;
   bool flag_regenerate = false;
@@ -72,10 +65,8 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
     start_end_derivatives.clear();
     flag_regenerate = false;
 
-    
     // Initial path generated from a min-snap traj by order.
-    if (flag_first_call || flag_polyInit ||
-        flag_force_polynomial /*|| ( start_pt - local_target_pt ).norm() < 1.0*/) {
+    if (flag_first_call || flag_polyInit || flag_force_polynomial /*|| ( start_pt - local_target_pt ).norm() < 1.0*/) {
 
       flag_first_call = false;
       flag_force_polynomial = false;
@@ -85,32 +76,27 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
       double dist = (start_pt - local_target_pt).norm();
       double time = pow(pp_.max_vel_, 2) / pp_.max_acc_ > dist
                         ? sqrt(dist / pp_.max_acc_)
-                        : (dist - pow(pp_.max_vel_, 2) / pp_.max_acc_) / pp_.max_vel_ +
-                              2 * pp_.max_vel_ / pp_.max_acc_;
+                        : (dist - pow(pp_.max_vel_, 2) / pp_.max_acc_) / pp_.max_vel_ + 2 * pp_.max_vel_ / pp_.max_acc_;
 
       if (!flag_randomPolyTraj) {
-        gl_traj =
-            PolynomialTraj::one_segment_traj_gen(start_pt, start_vel, start_acc, local_target_pt,
-                                                 local_target_vel, Eigen::Vector3d::Zero(), time);
+        gl_traj = PolynomialTraj::one_segment_traj_gen(start_pt, start_vel, start_acc, local_target_pt,
+                                                       local_target_vel, Eigen::Vector3d::Zero(), time);
       } else {
-        Eigen::Vector3d horizen_dir =
-            ((start_pt - local_target_pt).cross(Eigen::Vector3d(0, 0, 1))).normalized();
-        Eigen::Vector3d vertical_dir =
-            ((start_pt - local_target_pt).cross(horizen_dir)).normalized();
+        Eigen::Vector3d horizen_dir = ((start_pt - local_target_pt).cross(Eigen::Vector3d(0, 0, 1))).normalized();
+        Eigen::Vector3d vertical_dir = ((start_pt - local_target_pt).cross(horizen_dir)).normalized();
         Eigen::Vector3d random_inserted_pt =
             (start_pt + local_target_pt) / 2 +
-            (((double)rand()) / RAND_MAX - 0.5) * (start_pt - local_target_pt).norm() *
-                horizen_dir * 0.8 * (-0.978 / (continous_failures_count_ + 0.989) + 0.989) +
-            (((double)rand()) / RAND_MAX - 0.5) * (start_pt - local_target_pt).norm() *
-                vertical_dir * 0.4 * (-0.978 / (continous_failures_count_ + 0.989) + 0.989);
+            (((double)rand()) / RAND_MAX - 0.5) * (start_pt - local_target_pt).norm() * horizen_dir * 0.8 *
+                (-0.978 / (continous_failures_count_ + 0.989) + 0.989) +
+            (((double)rand()) / RAND_MAX - 0.5) * (start_pt - local_target_pt).norm() * vertical_dir * 0.4 *
+                (-0.978 / (continous_failures_count_ + 0.989) + 0.989);
         Eigen::MatrixXd pos(3, 3);
         pos.col(0) = start_pt;
         pos.col(1) = random_inserted_pt;
         pos.col(2) = local_target_pt;
         Eigen::VectorXd t(2);
         t(0) = t(1) = time / 2;
-        gl_traj = PolynomialTraj::minSnapTraj(pos, start_vel, local_target_vel, start_acc,
-                                              Eigen::Vector3d::Zero(), t);
+        gl_traj = PolynomialTraj::minSnapTraj(pos, start_vel, local_target_vel, start_acc, Eigen::Vector3d::Zero(), t);
       }
 
       double t;
@@ -130,8 +116,7 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
           last_pt = pt;
           point_set.push_back(pt);
         }
-      } while (flag_too_far ||
-               point_set.size() < 7); // To make sure the initial path has enough points.
+      } while (flag_too_far || point_set.size() < 7); // To make sure the initial path has enough points.
       t -= ts;
       start_end_derivatives.push_back(gl_traj.evaluateVel(0));
       start_end_derivatives.push_back(local_target_vel);
@@ -149,28 +134,24 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
       for (t = t_cur; t < local_data_.duration_ + 1e-3; t += ts) {
         segment_point.push_back(local_data_.position_traj_.evaluateDeBoorT(t));
         if (t > t_cur) {
-          pseudo_arc_length.push_back(
-              (segment_point.back() - segment_point[segment_point.size() - 2]).norm() +
-              pseudo_arc_length.back());
+          pseudo_arc_length.push_back((segment_point.back() - segment_point[segment_point.size() - 2]).norm() +
+                                      pseudo_arc_length.back());
         }
       }
       t -= ts;
 
-      double poly_time = (local_data_.position_traj_.evaluateDeBoorT(t) - local_target_pt).norm() /
-                         pp_.max_vel_ * 2;
+      double poly_time = (local_data_.position_traj_.evaluateDeBoorT(t) - local_target_pt).norm() / pp_.max_vel_ * 2;
       if (poly_time > ts) {
         PolynomialTraj gl_traj = PolynomialTraj::one_segment_traj_gen(
-            local_data_.position_traj_.evaluateDeBoorT(t),
-            local_data_.velocity_traj_.evaluateDeBoorT(t),
+            local_data_.position_traj_.evaluateDeBoorT(t), local_data_.velocity_traj_.evaluateDeBoorT(t),
             local_data_.acceleration_traj_.evaluateDeBoorT(t), local_target_pt, local_target_vel,
             Eigen::Vector3d::Zero(), poly_time);
 
         for (t = ts; t < poly_time; t += ts) {
           if (!pseudo_arc_length.empty()) {
             segment_point.push_back(gl_traj.evaluate(t));
-            pseudo_arc_length.push_back(
-                (segment_point.back() - segment_point[segment_point.size() - 2]).norm() +
-                pseudo_arc_length.back());
+            pseudo_arc_length.push_back((segment_point.back() - segment_point[segment_point.size() - 2]).norm() +
+                                        pseudo_arc_length.back());
           } else {
             ROS_ERROR("pseudo_arc_length is empty, return!");
             continous_failures_count_++;
@@ -189,26 +170,23 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
         id = 0;
         while ((id <= pseudo_arc_length.size() - 2) && sample_length <= pseudo_arc_length.back()) {
           if (sample_length >= pseudo_arc_length[id] && sample_length < pseudo_arc_length[id + 1]) {
-            point_set.push_back(
-                (sample_length - pseudo_arc_length[id]) /
-                    (pseudo_arc_length[id + 1] - pseudo_arc_length[id]) * segment_point[id + 1] +
-                (pseudo_arc_length[id + 1] - sample_length) /
-                    (pseudo_arc_length[id + 1] - pseudo_arc_length[id]) * segment_point[id]);
+            point_set.push_back((sample_length - pseudo_arc_length[id]) /
+                                    (pseudo_arc_length[id + 1] - pseudo_arc_length[id]) * segment_point[id + 1] +
+                                (pseudo_arc_length[id + 1] - sample_length) /
+                                    (pseudo_arc_length[id + 1] - pseudo_arc_length[id]) * segment_point[id]);
             sample_length += cps_dist;
           } else
             id++;
         }
         point_set.push_back(local_target_pt);
-      } while (point_set.size() <
-               7); // If the start point is very close to end point, this will help
+      } while (point_set.size() < 7); // If the start point is very close to end point, this will help
 
       start_end_derivatives.push_back(local_data_.velocity_traj_.evaluateDeBoorT(t_cur));
       start_end_derivatives.push_back(local_target_vel);
       start_end_derivatives.push_back(local_data_.acceleration_traj_.evaluateDeBoorT(t_cur));
       start_end_derivatives.push_back(Eigen::Vector3d::Zero());
 
-      if (point_set.size() >
-          pp_.planning_horizen_ / pp_.ctrl_pt_dist * 3) // The initial path is unnormally too long!
+      if (point_set.size() > pp_.planning_horizen_ / pp_.ctrl_pt_dist * 3) // The initial path is unnormally too long!
       {
         flag_force_polynomial = true;
         flag_regenerate = true;
@@ -253,8 +231,7 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
     cout << "Need to reallocate time." << endl;
 
     Eigen::MatrixXd optimal_control_points;
-    flag_step_2_success =
-        refineTrajAlgo(pos, start_end_derivatives, ratio, ts, optimal_control_points);
+    flag_step_2_success = refineTrajAlgo(pos, start_end_derivatives, ratio, ts, optimal_control_points);
     if (flag_step_2_success)
       pos = UniformBspline(optimal_control_points, 3, ts);
   }
@@ -280,25 +257,13 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
   return true;
 }
 
-bool EGOPlannerManager::EmergencyStop(Eigen::Vector3d stop_pos) {
-  Eigen::MatrixXd control_points(3, 6);
-  for (int i = 0; i < 6; i++) {
-    control_points.col(i) = stop_pos;
-  }
-
-  updateTrajInfo(UniformBspline(control_points, 3, 1.0), ros::Time::now());
-
-  return true;
-}
-
-bool EGOPlannerManager::planGlobalTrajWaypoints(const Eigen::Vector3d &start_pos,
-                                                const Eigen::Vector3d &start_vel,
+bool EGOPlannerManager::planGlobalTrajWaypoints(const Eigen::Vector3d &start_pos, const Eigen::Vector3d &start_vel,
                                                 const Eigen::Vector3d &start_acc,
                                                 const std::vector<Eigen::Vector3d> &waypoints,
-                                                const Eigen::Vector3d &end_vel,
-                                                const Eigen::Vector3d &end_acc) {
-
-  // generate global reference trajectory
+                                                const Eigen::Vector3d &end_vel, const Eigen::Vector3d &end_acc) {
+  //
+  // Generate global reference trajectory
+  //
 
   vector<Eigen::Vector3d> points;
   points.push_back(start_pos);
@@ -313,7 +278,7 @@ bool EGOPlannerManager::planGlobalTrajWaypoints(const Eigen::Vector3d &start_pos
     total_len += (waypoints[i + 1] - waypoints[i]).norm();
   }
 
-  // insert intermediate points if too far
+  // Insert intermediate points if too far
   vector<Eigen::Vector3d> inter_points;
   double dist_thresh = max(total_len / 8, 4.0);
 
@@ -325,8 +290,7 @@ bool EGOPlannerManager::planGlobalTrajWaypoints(const Eigen::Vector3d &start_pos
       int id_num = floor(dist / dist_thresh) + 1;
 
       for (int j = 1; j < id_num; ++j) {
-        Eigen::Vector3d inter_pt =
-            points.at(i) * (1.0 - double(j) / id_num) + points.at(i + 1) * double(j) / id_num;
+        Eigen::Vector3d inter_pt = points.at(i) * (1.0 - double(j) / id_num) + points.at(i + 1) * double(j) / id_num;
         inter_points.push_back(inter_pt);
       }
     }
@@ -334,16 +298,12 @@ bool EGOPlannerManager::planGlobalTrajWaypoints(const Eigen::Vector3d &start_pos
 
   inter_points.push_back(points.back());
 
-  // for ( int i=0; i<inter_points.size(); i++ )
-  // {
-  //   cout << inter_points[i].transpose() << endl;
-  // }
-
-  // write position matrix
+  // Write position matrix
   int pt_num = inter_points.size();
   Eigen::MatrixXd pos(3, pt_num);
-  for (int i = 0; i < pt_num; ++i)
+  for (int i = 0; i < pt_num; ++i) {
     pos.col(i) = inter_points[i];
+  }
 
   Eigen::Vector3d zero(0, 0, 0);
   Eigen::VectorXd time(pt_num - 1);
@@ -358,8 +318,8 @@ bool EGOPlannerManager::planGlobalTrajWaypoints(const Eigen::Vector3d &start_pos
   if (pos.cols() >= 3)
     gl_traj = PolynomialTraj::minSnapTraj(pos, start_vel, end_vel, start_acc, end_acc, time);
   else if (pos.cols() == 2)
-    gl_traj = PolynomialTraj::one_segment_traj_gen(start_pos, start_vel, start_acc, pos.col(1),
-                                                   end_vel, end_acc, time(0));
+    gl_traj =
+        PolynomialTraj::one_segment_traj_gen(start_pos, start_vel, start_acc, pos.col(1), end_vel, end_acc, time(0));
   else
     return false;
 
@@ -369,12 +329,9 @@ bool EGOPlannerManager::planGlobalTrajWaypoints(const Eigen::Vector3d &start_pos
   return true;
 }
 
-bool EGOPlannerManager::planGlobalTraj(const Eigen::Vector3d &start_pos,
-                                       const Eigen::Vector3d &start_vel,
-                                       const Eigen::Vector3d &start_acc,
-                                       const Eigen::Vector3d &end_pos,
-                                       const Eigen::Vector3d &end_vel,
-                                       const Eigen::Vector3d &end_acc) {
+bool EGOPlannerManager::planGlobalTraj(const Eigen::Vector3d &start_pos, const Eigen::Vector3d &start_vel,
+                                       const Eigen::Vector3d &start_acc, const Eigen::Vector3d &end_pos,
+                                       const Eigen::Vector3d &end_vel, const Eigen::Vector3d &end_acc) {
 
   // generate global reference trajectory
 
@@ -394,8 +351,7 @@ bool EGOPlannerManager::planGlobalTraj(const Eigen::Vector3d &start_pos,
       int id_num = floor(dist / dist_thresh) + 1;
 
       for (int j = 1; j < id_num; ++j) {
-        Eigen::Vector3d inter_pt =
-            points.at(i) * (1.0 - double(j) / id_num) + points.at(i + 1) * double(j) / id_num;
+        Eigen::Vector3d inter_pt = points.at(i) * (1.0 - double(j) / id_num) + points.at(i + 1) * double(j) / id_num;
         inter_points.push_back(inter_pt);
       }
     }
@@ -422,8 +378,7 @@ bool EGOPlannerManager::planGlobalTraj(const Eigen::Vector3d &start_pos,
   if (pos.cols() >= 3)
     gl_traj = PolynomialTraj::minSnapTraj(pos, start_vel, end_vel, start_acc, end_acc, time);
   else if (pos.cols() == 2)
-    gl_traj = PolynomialTraj::one_segment_traj_gen(start_pos, start_vel, start_acc, end_pos,
-                                                   end_vel, end_acc, time(0));
+    gl_traj = PolynomialTraj::one_segment_traj_gen(start_pos, start_vel, start_acc, end_pos, end_vel, end_acc, time(0));
   else
     return false;
 
@@ -433,9 +388,21 @@ bool EGOPlannerManager::planGlobalTraj(const Eigen::Vector3d &start_pos,
   return true;
 }
 
-bool EGOPlannerManager::refineTrajAlgo(UniformBspline &traj,
-                                       vector<Eigen::Vector3d> &start_end_derivative, double ratio,
-                                       double &ts, Eigen::MatrixXd &optimal_control_points) {
+bool EGOPlannerManager::EmergencyStop(Eigen::Vector3d stop_pos) {
+  Eigen::MatrixXd control_points(3, 6);
+  for (int i = 0; i < 6; i++) {
+    control_points.col(i) = stop_pos;
+  }
+  updateTrajInfo(UniformBspline(control_points, 3, 1.0), ros::Time::now());
+  return true;
+}
+
+//
+// Helper
+//
+
+bool EGOPlannerManager::refineTrajAlgo(UniformBspline &traj, vector<Eigen::Vector3d> &start_end_derivative,
+                                       double ratio, double &ts, Eigen::MatrixXd &optimal_control_points) {
   double t_inc;
 
   Eigen::MatrixXd ctrl_pts; // = traj.getControlPoint()
@@ -450,14 +417,12 @@ bool EGOPlannerManager::refineTrajAlgo(UniformBspline &traj,
   for (double t = 0; t < traj.getTimeSum() + 1e-4; t += t_step)
     bspline_optimizer_rebound_->ref_pts_.push_back(traj.evaluateDeBoorT(t));
 
-  bool success =
-      bspline_optimizer_rebound_->BsplineOptimizeTrajRefine(ctrl_pts, ts, optimal_control_points);
+  bool success = bspline_optimizer_rebound_->BsplineOptimizeTrajRefine(ctrl_pts, ts, optimal_control_points);
 
   return success;
 }
 
-void EGOPlannerManager::updateTrajInfo(const UniformBspline &position_traj,
-                                       const ros::Time time_now) {
+void EGOPlannerManager::updateTrajInfo(const UniformBspline &position_traj, const ros::Time time_now) {
   local_data_.start_time_ = time_now;
   local_data_.position_traj_ = position_traj;
   local_data_.velocity_traj_ = local_data_.position_traj_.getDerivative();
@@ -467,9 +432,8 @@ void EGOPlannerManager::updateTrajInfo(const UniformBspline &position_traj,
   local_data_.traj_id_ += 1;
 }
 
-void EGOPlannerManager::reparamBspline(UniformBspline &bspline,
-                                       vector<Eigen::Vector3d> &start_end_derivative, double ratio,
-                                       Eigen::MatrixXd &ctrl_pts, double &dt, double &time_inc) {
+void EGOPlannerManager::reparamBspline(UniformBspline &bspline, vector<Eigen::Vector3d> &start_end_derivative,
+                                       double ratio, Eigen::MatrixXd &ctrl_pts, double &dt, double &time_inc) {
   double time_origin = bspline.getTimeSum();
   int seg_num = bspline.getControlPoint().cols() - 3;
   // double length = bspline.getLength(0.1);

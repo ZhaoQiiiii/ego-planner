@@ -1,10 +1,13 @@
 #include <iostream>
 #include <traj_utils/polynomial_traj.h>
 
-PolynomialTraj
-PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eigen::Vector3d &start_vel,
-                            const Eigen::Vector3d &end_vel, const Eigen::Vector3d &start_acc,
-                            const Eigen::Vector3d &end_acc, const Eigen::VectorXd &Time) {
+PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eigen::Vector3d &start_vel,
+                                           const Eigen::Vector3d &end_vel, const Eigen::Vector3d &start_acc,
+                                           const Eigen::Vector3d &end_acc, const Eigen::VectorXd &Time) {
+  //
+  // BIVP with closed-form
+  //
+
   int seg_num = Time.size();
   Eigen::MatrixXd poly_coeff(seg_num, 3 * 6);
   Eigen::VectorXd Px(6 * seg_num), Py(6 * seg_num), Pz(6 * seg_num);
@@ -171,12 +174,14 @@ PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eigen::Vector3d &s
   return poly_traj;
 }
 
-PolynomialTraj PolynomialTraj::one_segment_traj_gen(const Eigen::Vector3d &start_pt,
-                                                    const Eigen::Vector3d &start_vel,
-                                                    const Eigen::Vector3d &start_acc,
-                                                    const Eigen::Vector3d &end_pt,
-                                                    const Eigen::Vector3d &end_vel,
-                                                    const Eigen::Vector3d &end_acc, double t) {
+PolynomialTraj PolynomialTraj::one_segment_traj_gen(const Eigen::Vector3d &start_pt, const Eigen::Vector3d &start_vel,
+                                                    const Eigen::Vector3d &start_acc, const Eigen::Vector3d &end_pt,
+                                                    const Eigen::Vector3d &end_vel, const Eigen::Vector3d &end_acc,
+                                                    double t) {
+  //
+  // BVP with closed-form
+  //
+
   Eigen::MatrixXd C = Eigen::MatrixXd::Zero(6, 6), Crow(1, 6);
   Eigen::VectorXd Bx(6), By(6), Bz(6);
 

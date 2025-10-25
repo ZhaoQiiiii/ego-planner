@@ -25,18 +25,25 @@ using std::vector;
 namespace ego_planner {
 
 class EGOReplanFSM {
+public:
+  EGOReplanFSM() {}
+  ~EGOReplanFSM() {}
+
+  void init(ros::NodeHandle &nh);
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
-  /* ---------- flag ---------- */
+  // Flag
   enum FSM_EXEC_STATE { INIT, WAIT_TARGET, GEN_NEW_TRAJ, REPLAN_TRAJ, EXEC_TRAJ, EMERGENCY_STOP };
   enum TARGET_TYPE { MANUAL_TARGET = 1, PRESET_TARGET = 2, REFENCE_PATH = 3 };
 
-  /* planning utils */
+  // Planning utils
   EGOPlannerManager::Ptr planner_manager_;
   PlanningVisualization::Ptr visualization_;
   ego_planner::DataDisp data_disp_;
 
-  /* parameters */
+  // Planning parameters
   int target_type_; // 1 mannual select, 2 hard code
   double no_replan_thresh_, replan_thresh_;
   double waypoints_[50][3];
@@ -44,7 +51,7 @@ private:
   double planning_horizen_, planning_horizen_time_;
   double emergency_time_;
 
-  /* planning data */
+  // Planning data
   bool trigger_, have_target_, have_odom_, have_new_target_;
   FSM_EXEC_STATE exec_state_;
   int continously_called_times_{0};
@@ -59,20 +66,18 @@ private:
 
   bool flag_escape_emergency_;
 
-  /* ROS utils */
+  // ROS utils
   ros::NodeHandle node_;
   ros::Timer exec_timer_, safety_timer_;
   ros::Subscriber waypoint_sub_, odom_sub_;
   ros::Publisher replan_pub_, new_pub_, bspline_pub_, data_disp_pub_;
 
-  /* helper functions */
+  // Helper functions
   bool callReboundReplan(bool flag_use_poly_init,
                          bool flag_randomPolyTraj); // front-end and back-end method
   bool callEmergencyStop(Eigen::Vector3d stop_pos); // front-end and back-end method
   bool planFromCurrentTraj();
 
-  /* return value: std::pair< Times of the same state be continuously called, current continuously
-   * called state > */
   void changeFSMExecState(FSM_EXEC_STATE new_state, string pos_call);
   std::pair<int, EGOReplanFSM::FSM_EXEC_STATE> timesOfConsecutiveStateCalls();
   void printFSMExecState();
@@ -80,21 +85,13 @@ private:
   void planGlobalTrajbyGivenWps();
   void getLocalTarget();
 
-  /* ROS functions */
+  // ROS callbacks
   void execFSMCallback(const ros::TimerEvent &e);
   void checkCollisionCallback(const ros::TimerEvent &e);
   void waypointCallback(const nav_msgs::PathConstPtr &msg);
   void odometryCallback(const nav_msgs::OdometryConstPtr &msg);
 
   bool checkCollision();
-
-public:
-  EGOReplanFSM(/* args */) {}
-  ~EGOReplanFSM() {}
-
-  void init(ros::NodeHandle &nh);
-
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 } // namespace ego_planner
