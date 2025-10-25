@@ -64,7 +64,7 @@ public:
   bool checkFeasibility(double &ratio, bool show = false);
   void lengthenTime(const double &ratio);
 
-  // For performance evaluation 
+  // For performance evaluation
   double getTimeSum();
   double getLength(const double &res = 0.01);
   double getJerk();

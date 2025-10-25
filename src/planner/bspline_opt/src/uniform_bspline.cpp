@@ -174,8 +174,6 @@ void UniformBspline::lengthenTime(const double &ratio) {
     u_(i) += delta_t;
 }
 
-// void UniformBspline::recomputeInit() {}
-
 void UniformBspline::parameterizeToBspline(const double &ts, const vector<Eigen::Vector3d> &point_set,
                                            const vector<Eigen::Vector3d> &start_end_derivative,
                                            Eigen::MatrixXd &ctrl_pts) {

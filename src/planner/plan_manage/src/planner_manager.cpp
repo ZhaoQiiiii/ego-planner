@@ -208,7 +208,7 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
     // Get initial path from min-snap trajectory.
     if (flag_first_call || flag_polyInit || flag_force_polynomial) {
 
-      // It happens in (get new target) or (replan second or third call) 
+      // It happens in (get new target) or (replan second or third call)
 
       flag_first_call = false;
       flag_force_polynomial = false;
@@ -276,7 +276,7 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
 
     else { // Get initial path from previous trajectory.
 
-      // It happens in (replan first call) 
+      // It happens in (replan first call)
 
       double t;
       double t_cur = (ros::Time::now() - local_data_.start_time_).toSec();
@@ -314,7 +314,7 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
       }
 
       double sample_length = 0;
-      double cps_dist = pp_.ctrl_pt_dist * 1.5; 
+      double cps_dist = pp_.ctrl_pt_dist * 1.5;
       size_t id = 0;
 
       do {
@@ -354,7 +354,7 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
   Eigen::MatrixXd ctrl_pts;
   UniformBspline::parameterizeToBspline(ts, point_set, start_end_derivatives, ctrl_pts);
 
-  // Find pv pairs for each ctrl points
+  // Generate pv pairs for each ctrl points
   vector<vector<Eigen::Vector3d>> a_star_pathes;
   a_star_pathes = bspline_optimizer_rebound_->initControlPoints(ctrl_pts, true);
 
@@ -380,7 +380,7 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
   t_start = ros::Time::now();
 
   //
-  // STEP 3: Refine trajectory if necessary (Re-allocate time)
+  // STEP 3: Refine trajectory if necessary (Reallocate Time)
   //
 
   UniformBspline pos = UniformBspline(ctrl_pts, 3, ts);
@@ -398,20 +398,23 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
   }
 
   if (!flag_step_2_success) {
-    printf("\033[34mThis refined trajectory hits obstacles. It doesn't matter if appeares "
-           "occasionally. But if continously appearing, Increase parameter "
-           "\"lambda_fitness\".\n\033[0m");
+    printf("\033[34mThis refined trajectory hits obstacles. It doesn't matter if appeares occasionally."
+           "But if continously appearing, Increase parameter \"lambda_fitness\".\n\033[0m");
     continous_failures_count_++;
     return false;
   }
 
   t_refine = ros::Time::now() - t_start;
 
-  // Save planning results
+
+  //
+  // STEP 4: Save planning results
+  // 
+
   updateTrajInfo(pos, ros::Time::now());
 
   cout << "total time:\033[42m" << (t_init + t_opt + t_refine).toSec()
-       << "\033[0m,optimize:" << (t_init + t_opt).toSec() << ",refine:" << t_refine.toSec() << endl;
+       << "\033[0m,optimize:" << (t_init + t_opt).toSec() << ", refine:" << t_refine.toSec() << endl;
 
   continous_failures_count_ = 0;
   return true;
@@ -429,6 +432,16 @@ bool EGOPlannerManager::EmergencyStop(Eigen::Vector3d stop_pos) {
 //
 // Helper
 //
+
+void EGOPlannerManager::updateTrajInfo(const UniformBspline &position_traj, const ros::Time time_now) {
+  local_data_.start_time_ = time_now;
+  local_data_.position_traj_ = position_traj;
+  local_data_.velocity_traj_ = local_data_.position_traj_.getDerivative();
+  local_data_.acceleration_traj_ = local_data_.velocity_traj_.getDerivative();
+  local_data_.start_pos_ = local_data_.position_traj_.evaluateDeBoorT(0.0);
+  local_data_.duration_ = local_data_.position_traj_.getTimeSum();
+  local_data_.traj_id_ += 1;
+}
 
 bool EGOPlannerManager::refineTrajAlgo(UniformBspline &traj, vector<Eigen::Vector3d> &start_end_derivative,
                                        double ratio, double &ts, Eigen::MatrixXd &optimal_control_points) {
@@ -449,16 +462,6 @@ bool EGOPlannerManager::refineTrajAlgo(UniformBspline &traj, vector<Eigen::Vecto
   bool success = bspline_optimizer_rebound_->BsplineOptimizeTrajRefine(ctrl_pts, ts, optimal_control_points);
 
   return success;
-}
-
-void EGOPlannerManager::updateTrajInfo(const UniformBspline &position_traj, const ros::Time time_now) {
-  local_data_.start_time_ = time_now;
-  local_data_.position_traj_ = position_traj;
-  local_data_.velocity_traj_ = local_data_.position_traj_.getDerivative();
-  local_data_.acceleration_traj_ = local_data_.velocity_traj_.getDerivative();
-  local_data_.start_pos_ = local_data_.position_traj_.evaluateDeBoorT(0.0);
-  local_data_.duration_ = local_data_.position_traj_.getTimeSum();
-  local_data_.traj_id_ += 1;
 }
 
 void EGOPlannerManager::reparamBspline(UniformBspline &bspline, vector<Eigen::Vector3d> &start_end_derivative,

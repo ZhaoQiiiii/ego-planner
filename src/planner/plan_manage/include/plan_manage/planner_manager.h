@@ -14,9 +14,6 @@
 namespace ego_planner {
 
 class EGOPlannerManager {
-
-  // Key algorithms of mapping and planning are called
-
 public:
   EGOPlannerManager();
   ~EGOPlannerManager();

@@ -116,11 +116,11 @@ void EGOReplanFSM::execFSMCallback(const ros::TimerEvent &e) {
 
   case EXEC_TRAJ: {
     // Determine if need to replan
-    LocalTrajData *info = &planner_manager_->local_data_;
+
     ros::Time time_now = ros::Time::now();
+    LocalTrajData *info = &planner_manager_->local_data_;
     double t_cur = (time_now - info->start_time_).toSec();
     t_cur = min(info->duration_, t_cur);
-
     Eigen::Vector3d pos = info->position_traj_.evaluateDeBoorT(t_cur);
 
     if (t_cur > info->duration_ - 1e-2) {
@@ -216,47 +216,6 @@ void EGOReplanFSM::waypointCallback(const nav_msgs::PathConstPtr &msg) {
   }
 }
 
-void EGOReplanFSM::planGlobalTrajbyGivenWps() {
-  std::vector<Eigen::Vector3d> wps(waypoint_num_);
-  for (int i = 0; i < waypoint_num_; i++) {
-    wps[i](0) = waypoints_[i][0];
-    wps[i](1) = waypoints_[i][1];
-    wps[i](2) = waypoints_[i][2];
-    end_pt_ = wps.back();
-  }
-
-  // Get waypoints of global reference trajectory
-  bool success = planner_manager_->planGlobalTrajWaypoints(odom_pos_, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(),
-                                                           wps, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
-  for (size_t i = 0; i < (size_t)waypoint_num_; i++) {
-    visualization_->displayGoalPoint(wps[i], Eigen::Vector4d(0, 0.5, 0.5, 1), 0.3, i);
-    ros::Duration(0.001).sleep();
-  }
-
-  if (success) {
-    // FSM
-    end_vel_.setZero();
-    have_target_ = true;
-    have_new_target_ = true;
-    changeFSMExecState(GEN_NEW_TRAJ, "TRIG");
-
-    // Display
-    constexpr double step_size_t = 0.1;
-    int i_end = std::floor(planner_manager_->global_data_.global_duration_ / step_size_t);
-
-    std::vector<Eigen::Vector3d> gloabl_traj(i_end);
-    for (int i = 0; i < i_end; i++) {
-      gloabl_traj[i] = planner_manager_->global_data_.global_traj_.evaluate(i * step_size_t);
-    }
-
-    ros::Duration(0.001).sleep();
-    visualization_->displayGlobalPathList(gloabl_traj, 0.1, 0);
-    ros::Duration(0.001).sleep();
-  } else {
-    ROS_ERROR("Unable to generate global trajectory!");
-  }
-}
-
 void EGOReplanFSM::odometryCallback(const nav_msgs::OdometryConstPtr &msg) {
   odom_pos_(0) = msg->pose.pose.position.x;
   odom_pos_(1) = msg->pose.pose.position.y;
@@ -287,6 +246,7 @@ void EGOReplanFSM::checkCollisionCallback(const ros::TimerEvent &e) {
   constexpr double time_step = 0.01;
   double t_cur = (ros::Time::now() - info->start_time_).toSec();
   double t_2_3 = info->duration_ * 2 / 3;
+  
   for (double t = t_cur; t < info->duration_; t += time_step) {
 
     if (t_cur < t_2_3 && t >= t_2_3) {
@@ -303,7 +263,7 @@ void EGOReplanFSM::checkCollisionCallback(const ros::TimerEvent &e) {
       }
 
       else {
-        if (t - t_cur < emergency_time_) { // 0.8s of emergency time
+        if (t - t_cur < emergency_time_) { // emergency time = 0.8s 
           ROS_WARN("Suddenly discovered obstacles. emergency stop! time=%f", t - t_cur);
           changeFSMExecState(EMERGENCY_STOP, "SAFETY");
         }
@@ -321,7 +281,7 @@ void EGOReplanFSM::checkCollisionCallback(const ros::TimerEvent &e) {
 }
 
 //
-// Planner Realted
+// Helper Function
 //
 
 bool EGOReplanFSM::callReboundReplan(bool flag_use_poly_init, bool flag_randomPolyTraj) {
@@ -486,9 +446,46 @@ std::pair<int, EGOReplanFSM::FSM_EXEC_STATE> EGOReplanFSM::timesOfConsecutiveSta
   return std::pair<int, FSM_EXEC_STATE>(continously_called_times_, exec_state_);
 }
 
-//
-// FSM Realted
-//
+void EGOReplanFSM::planGlobalTrajbyGivenWps() {
+  std::vector<Eigen::Vector3d> wps(waypoint_num_);
+  for (int i = 0; i < waypoint_num_; i++) {
+    wps[i](0) = waypoints_[i][0];
+    wps[i](1) = waypoints_[i][1];
+    wps[i](2) = waypoints_[i][2];
+    end_pt_ = wps.back();
+  }
+
+  // Get waypoints of global reference trajectory
+  bool success = planner_manager_->planGlobalTrajWaypoints(odom_pos_, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(),
+                                                           wps, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
+  for (size_t i = 0; i < (size_t)waypoint_num_; i++) {
+    visualization_->displayGoalPoint(wps[i], Eigen::Vector4d(0, 0.5, 0.5, 1), 0.3, i);
+    ros::Duration(0.001).sleep();
+  }
+
+  if (success) {
+    // FSM
+    end_vel_.setZero();
+    have_target_ = true;
+    have_new_target_ = true;
+    changeFSMExecState(GEN_NEW_TRAJ, "TRIG");
+
+    // Display
+    constexpr double step_size_t = 0.1;
+    int i_end = std::floor(planner_manager_->global_data_.global_duration_ / step_size_t);
+
+    std::vector<Eigen::Vector3d> gloabl_traj(i_end);
+    for (int i = 0; i < i_end; i++) {
+      gloabl_traj[i] = planner_manager_->global_data_.global_traj_.evaluate(i * step_size_t);
+    }
+
+    ros::Duration(0.001).sleep();
+    visualization_->displayGlobalPathList(gloabl_traj, 0.1, 0);
+    ros::Duration(0.001).sleep();
+  } else {
+    ROS_ERROR("Unable to generate global trajectory!");
+  }
+}
 
 void EGOReplanFSM::changeFSMExecState(FSM_EXEC_STATE new_state, string pos_call) {
   if (new_state == exec_state_)
