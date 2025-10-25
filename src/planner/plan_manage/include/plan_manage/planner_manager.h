@@ -41,9 +41,7 @@ public:
   GridMap::Ptr grid_map_;
 
 private:
-  /* main planning algorithms & modules */
   PlanningVisualization::Ptr visualization_;
-
   BsplineOptimizer::Ptr bspline_optimizer_rebound_;
 
   int continous_failures_count_{0};

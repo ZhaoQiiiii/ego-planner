@@ -28,7 +28,6 @@ class EGOReplanFSM {
 public:
   EGOReplanFSM() {}
   ~EGOReplanFSM() {}
-
   void init(ros::NodeHandle &nh);
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -43,7 +42,7 @@ private:
   PlanningVisualization::Ptr visualization_;
   ego_planner::DataDisp data_disp_;
 
-  // Planning parameters
+  // Planning params
   int target_type_; // 1 mannual select, 2 hard code
   double no_replan_thresh_, replan_thresh_;
   double waypoints_[50][3];
@@ -56,12 +55,12 @@ private:
   FSM_EXEC_STATE exec_state_;
   int continously_called_times_{0};
 
-  Eigen::Vector3d odom_pos_, odom_vel_, odom_acc_; // odometry state
+  Eigen::Vector3d odom_pos_, odom_vel_, odom_acc_;
   Eigen::Quaterniond odom_orient_;
 
-  Eigen::Vector3d init_pt_, start_pt_, start_vel_, start_acc_, start_yaw_; // start state
-  Eigen::Vector3d end_pt_, end_vel_;                                       // goal state
-  Eigen::Vector3d local_target_pt_, local_target_vel_;                     // local target state
+  Eigen::Vector3d init_pt_, start_pt_, start_vel_, start_acc_, start_yaw_; 
+  Eigen::Vector3d end_pt_, end_vel_;                                      
+  Eigen::Vector3d local_target_pt_, local_target_vel_;                     
   int current_wp_;
 
   bool flag_escape_emergency_;
@@ -72,10 +71,15 @@ private:
   ros::Subscriber waypoint_sub_, odom_sub_;
   ros::Publisher replan_pub_, new_pub_, bspline_pub_, data_disp_pub_;
 
+  // ROS callbacks
+  void execFSMCallback(const ros::TimerEvent &e);
+  void checkCollisionCallback(const ros::TimerEvent &e);
+  void waypointCallback(const nav_msgs::PathConstPtr &msg);
+  void odometryCallback(const nav_msgs::OdometryConstPtr &msg);
+
   // Helper functions
-  bool callReboundReplan(bool flag_use_poly_init,
-                         bool flag_randomPolyTraj); // front-end and back-end method
-  bool callEmergencyStop(Eigen::Vector3d stop_pos); // front-end and back-end method
+  bool callReboundReplan(bool flag_use_poly_init, bool flag_randomPolyTraj);
+  bool callEmergencyStop(Eigen::Vector3d stop_pos);                         
   bool planFromCurrentTraj();
 
   void changeFSMExecState(FSM_EXEC_STATE new_state, string pos_call);
@@ -84,13 +88,6 @@ private:
 
   void planGlobalTrajbyGivenWps();
   void getLocalTarget();
-
-  // ROS callbacks
-  void execFSMCallback(const ros::TimerEvent &e);
-  void checkCollisionCallback(const ros::TimerEvent &e);
-  void waypointCallback(const nav_msgs::PathConstPtr &msg);
-  void odometryCallback(const nav_msgs::OdometryConstPtr &msg);
-
   bool checkCollision();
 };
 

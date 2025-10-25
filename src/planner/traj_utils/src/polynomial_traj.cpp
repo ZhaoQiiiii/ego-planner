@@ -5,7 +5,7 @@ PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eig
                                            const Eigen::Vector3d &end_vel, const Eigen::Vector3d &start_acc,
                                            const Eigen::Vector3d &end_acc, const Eigen::VectorXd &Time) {
   //
-  // BIVP with closed-form
+  // BIVP with closed-form solution
   //
 
   int seg_num = Time.size();
@@ -22,7 +22,6 @@ PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eig
     return fac;
   };
 
-  /* ---------- end point derivative ---------- */
   Eigen::VectorXd Dx = Eigen::VectorXd::Zero(seg_num * 6);
   Eigen::VectorXd Dy = Eigen::VectorXd::Zero(seg_num * 6);
   Eigen::VectorXd Dz = Eigen::VectorXd::Zero(seg_num * 6);
@@ -44,7 +43,9 @@ PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eig
       Dx(k * 6 + 4) = start_acc(0);
       Dy(k * 6 + 4) = start_acc(1);
       Dz(k * 6 + 4) = start_acc(2);
-    } else if (k == seg_num - 1) {
+    }
+
+    else if (k == seg_num - 1) {
       Dx(k * 6 + 3) = end_vel(0);
       Dy(k * 6 + 3) = end_vel(1);
       Dz(k * 6 + 3) = end_vel(2);
@@ -55,7 +56,7 @@ PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eig
     }
   }
 
-  /* ---------- Mapping Matrix A ---------- */
+  // Matrix A
   Eigen::MatrixXd Ab;
   Eigen::MatrixXd A = Eigen::MatrixXd::Zero(seg_num * 6, seg_num * 6);
 
@@ -69,7 +70,7 @@ PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eig
     A.block(k * 6, k * 6, 6, 6) = Ab;
   }
 
-  /* ---------- Produce Selection Matrix C' ---------- */
+  // Produce Selection Matrix C'
   Eigen::MatrixXd Ct, C;
 
   num_f = 2 * seg_num + 4; // 3 + 3 + (seg_num - 1) * 2 = 2m + 4
@@ -105,7 +106,7 @@ PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eig
   Eigen::VectorXd Dy1 = C * Dy;
   Eigen::VectorXd Dz1 = C * Dz;
 
-  /* ---------- minimum snap matrix ---------- */
+  // Minimum snap matrix
   Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(seg_num * 6, seg_num * 6);
 
   for (int k = 0; k < seg_num; k++) {
@@ -117,7 +118,7 @@ PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eig
     }
   }
 
-  /* ---------- R matrix ---------- */
+  // Matrix R
   Eigen::MatrixXd R = C * A.transpose().inverse() * Q * A.inverse() * Ct;
 
   Eigen::VectorXd Dxf(2 * seg_num + 4), Dyf(2 * seg_num + 4), Dzf(2 * seg_num + 4);
@@ -136,8 +137,7 @@ PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eig
   Rpf = R.block(2 * seg_num + 4, 0, 2 * seg_num - 2, 2 * seg_num + 4);
   Rpp = R.block(2 * seg_num + 4, 2 * seg_num + 4, 2 * seg_num - 2, 2 * seg_num - 2);
 
-  /* ---------- close form solution ---------- */
-
+  // Closed form solution
   Eigen::VectorXd Dxp(2 * seg_num - 2), Dyp(2 * seg_num - 2), Dzp(2 * seg_num - 2);
   Dxp = -(Rpp.inverse() * Rfp.transpose()) * Dxf;
   Dyp = -(Rpp.inverse() * Rfp.transpose()) * Dyf;
@@ -157,7 +157,6 @@ PolynomialTraj PolynomialTraj::minSnapTraj(const Eigen::MatrixXd &Pos, const Eig
     poly_coeff.block(i, 12, 1, 6) = Pz.segment(i * 6, 6).transpose();
   }
 
-  /* ---------- use polynomials ---------- */
   PolynomialTraj poly_traj;
   for (int i = 0; i < poly_coeff.rows(); ++i) {
     vector<double> cx(6), cy(6), cz(6);
@@ -179,15 +178,18 @@ PolynomialTraj PolynomialTraj::one_segment_traj_gen(const Eigen::Vector3d &start
                                                     const Eigen::Vector3d &end_vel, const Eigen::Vector3d &end_acc,
                                                     double t) {
   //
-  // BVP with closed-form
+  // BVP with closed-form solution
   //
 
   Eigen::MatrixXd C = Eigen::MatrixXd::Zero(6, 6), Crow(1, 6);
   Eigen::VectorXd Bx(6), By(6), Bz(6);
 
+  // C (t = 0)
   C(0, 5) = 1;
   C(1, 4) = 1;
   C(2, 3) = 2;
+
+  // C (t = T)
   Crow << pow(t, 5), pow(t, 4), pow(t, 3), pow(t, 2), t, 1;
   C.row(3) = Crow;
   Crow << 5 * pow(t, 4), 4 * pow(t, 3), 3 * pow(t, 2), 2 * t, 1, 0;
@@ -195,10 +197,12 @@ PolynomialTraj PolynomialTraj::one_segment_traj_gen(const Eigen::Vector3d &start
   Crow << 20 * pow(t, 3), 12 * pow(t, 2), 6 * t, 2, 0, 0;
   C.row(5) = Crow;
 
+  // B
   Bx << start_pt(0), start_vel(0), start_acc(0), end_pt(0), end_vel(0), end_acc(0);
   By << start_pt(1), start_vel(1), start_acc(1), end_pt(1), end_vel(1), end_acc(1);
   Bz << start_pt(2), start_vel(2), start_acc(2), end_pt(2), end_vel(2), end_acc(2);
 
+  // C × Cof = B
   Eigen::VectorXd Cofx = C.colPivHouseholderQr().solve(Bx);
   Eigen::VectorXd Cofy = C.colPivHouseholderQr().solve(By);
   Eigen::VectorXd Cofz = C.colPivHouseholderQr().solve(Bz);
