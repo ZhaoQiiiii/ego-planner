@@ -72,12 +72,11 @@ bool EGOPlannerManager::reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d 
     start_end_derivatives.clear();
     flag_regenerate = false;
 
+    
+    // Initial path generated from a min-snap traj by order.
     if (flag_first_call || flag_polyInit ||
-        flag_force_polynomial /*|| ( start_pt - local_target_pt ).norm() < 1.0*/) // Initial path
-                                                                                  // generated from
-                                                                                  // a min-snap traj
-                                                                                  // by order.
-    {
+        flag_force_polynomial /*|| ( start_pt - local_target_pt ).norm() < 1.0*/) {
+
       flag_first_call = false;
       flag_force_polynomial = false;
 
