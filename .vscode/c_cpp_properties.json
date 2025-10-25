@@ -1,7 +1,10 @@
 {
   "configurations": [
     {
-      "name": "Linux",
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": true
+      },
       "includePath": [
         "/usr/include/**",
         "/opt/ros/noetic/include/**",
@@ -19,10 +22,11 @@
         "${workspaceFolder}/src/uav_simulator/Utils/quadrotor_msgs/include/**",
         "${workspaceFolder}/src/uav_simulator/Utils/uav_utils/include/**"
       ],
-      "defines": [],
+      "name": "ROS",
       "cStandard": "c17",
-      "cppStandard": "gnu++14",
+      "cppStandard": "c++17",
       "intelliSenseMode": "linux-gcc-x64",
+      "compilerPath": "/usr/bin/g++",
       "configurationProvider": "ms-vscode.cmake-tools"
     }
   ],

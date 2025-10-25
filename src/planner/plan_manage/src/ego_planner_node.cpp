@@ -10,7 +10,6 @@ int main(int argc, char **argv) {
   ros::NodeHandle nh("~");
 
   EGOReplanFSM rebo_replan;
-
   rebo_replan.init(nh);
 
   ros::Duration(1.0).sleep();
