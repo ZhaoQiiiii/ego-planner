@@ -12,8 +12,21 @@ using std::vector;
 
 namespace ego_planner {
 
+struct PlanParameters {
+  double max_vel_, max_acc_, max_jerk_; // physical limits
+  double ctrl_pt_dist;                  // distance between adjacient B-spline control points
+  double feasibility_tolerance_;        // permitted ratio of vel/acc exceeding limits
+  double planning_horizen_;
+
+  double time_search_ = 0.0;
+  double time_optimize_ = 0.0;
+  double time_adjust_ = 0.0;
+};
+
 class GlobalTrajData {
-private:
+
+  // Info of Global Trajectory
+
 public:
   PolynomialTraj global_traj_;
   vector<UniformBspline> local_traj_;
@@ -25,8 +38,7 @@ public:
   double last_time_inc_;
   double last_progress_time_;
 
-  GlobalTrajData(/* args */) {}
-
+  GlobalTrajData() {}
   ~GlobalTrajData() {}
 
   bool localTrajReachTarget() { return fabs(local_end_time_ - global_duration_) < 0.1; }
@@ -61,9 +73,13 @@ public:
   Eigen::Vector3d getPosition(double t) {
     if (t >= -1e-3 && t <= local_start_time_) {
       return global_traj_.evaluate(t - time_increase_ + last_time_inc_);
-    } else if (t >= local_end_time_ && t <= global_duration_ + 1e-3) {
+    }
+
+    else if (t >= local_end_time_ && t <= global_duration_ + 1e-3) {
       return global_traj_.evaluate(t - time_increase_);
-    } else {
+    }
+
+    else {
       double tm, tmp;
       local_traj_[0].getTimeSpan(tm, tmp);
       return local_traj_[0].evaluateDeBoor(tm + t - local_start_time_);
@@ -98,8 +114,7 @@ public:
   // start_t: start time of the trajectory
   // dist_pt: distance between the discretized points
   void getTrajByRadius(const double &start_t, const double &des_radius, const double &dist_pt,
-                       vector<Eigen::Vector3d> &point_set,
-                       vector<Eigen::Vector3d> &start_end_derivative, double &dt,
+                       vector<Eigen::Vector3d> &point_set, vector<Eigen::Vector3d> &start_end_derivative, double &dt,
                        double &seg_duration) {
     double seg_length = 0.0; // length of the truncated segment
     double seg_time = 0.0;   // duration of the truncated segment
@@ -145,8 +160,7 @@ public:
   // start_t: start time of the trajectory
   // duration: time length of the segment
   // seg_num: discretized the segment into *seg_num* parts
-  void getTrajByDuration(double start_t, double duration, int seg_num,
-                         vector<Eigen::Vector3d> &point_set,
+  void getTrajByDuration(double start_t, double duration, int seg_num, vector<Eigen::Vector3d> &point_set,
                          vector<Eigen::Vector3d> &start_end_derivative, double &dt) {
     dt = duration / seg_num;
     Eigen::Vector3d cur_pt;
@@ -162,21 +176,9 @@ public:
   }
 };
 
-struct PlanParameters {
-  /* planning algorithm parameters */
-  double max_vel_, max_acc_, max_jerk_; // physical limits
-  double ctrl_pt_dist;                  // distance between adjacient B-spline control points
-  double feasibility_tolerance_;        // permitted ratio of vel/acc exceeding limits
-  double planning_horizen_;
-
-  /* processing time */
-  double time_search_ = 0.0;
-  double time_optimize_ = 0.0;
-  double time_adjust_ = 0.0;
-};
-
 struct LocalTrajData {
-  /* info of generated traj */
+
+  // Info of Generated Trajectory
 
   int traj_id_;
   double duration_;

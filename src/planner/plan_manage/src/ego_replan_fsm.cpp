@@ -328,20 +328,21 @@ void EGOReplanFSM::checkCollisionCallback(const ros::TimerEvent &e) {
 
 bool EGOReplanFSM::callReboundReplan(bool flag_use_poly_init, bool flag_randomPolyTraj) {
 
+  // Main API between FSM and Rebound Replan
+
   getLocalTarget();
 
   bool plan_success =
       planner_manager_->reboundReplan(start_pt_, start_vel_, start_acc_, local_target_pt_, local_target_vel_,
                                       (have_new_target_ || flag_use_poly_init), flag_randomPolyTraj);
   have_new_target_ = false;
-
-  cout << "final_plan_success=" << plan_success << endl;
+  
 
   if (plan_success) {
 
-    auto info = &planner_manager_->local_data_;
+    // Pub b-spline 
+    LocalTrajData *info = &planner_manager_->local_data_;
 
-    /* publish traj */
     ego_planner::Bspline bspline;
     bspline.order = 3;
     bspline.start_time = info->start_time_;
@@ -365,6 +366,7 @@ bool EGOReplanFSM::callReboundReplan(bool flag_use_poly_init, bool flag_randomPo
 
     bspline_pub_.publish(bspline);
 
+    // Display
     visualization_->displayOptimalList(info->position_traj_.get_control_points(), 0);
   }
 
@@ -433,18 +435,22 @@ bool EGOReplanFSM::planFromCurrentTraj() {
 }
 
 void EGOReplanFSM::getLocalTarget() {
+
+  // Get local target from global trajectory
+
   double t;
 
   double t_step = planning_horizen_ / 20 / planner_manager_->pp_.max_vel_;
   double dist_min = 9999, dist_min_t = 0.0;
 
+  // Get pos of local target 
   for (t = planner_manager_->global_data_.last_progress_time_; t < planner_manager_->global_data_.global_duration_;
        t += t_step) {
+
     Eigen::Vector3d pos_t = planner_manager_->global_data_.getPosition(t);
     double dist = (pos_t - start_pt_).norm();
 
     if (t < planner_manager_->global_data_.last_progress_time_ + 1e-5 && dist > planning_horizen_) {
-      // todo
       ROS_ERROR("last_progress_time_ ERROR !");
       ROS_ERROR("last_progress_time_ ERROR !");
       ROS_ERROR("last_progress_time_ ERROR !");
@@ -463,22 +469,18 @@ void EGOReplanFSM::getLocalTarget() {
     }
   }
 
-  if (t > planner_manager_->global_data_.global_duration_) { // Last global point
+  if (t > planner_manager_->global_data_.global_duration_) {
     local_target_pt_ = end_pt_;
   }
 
+  // Get vel of local target 
   if ((end_pt_ - local_target_pt_).norm() <
-      (planner_manager_->pp_.max_vel_ * planner_manager_->pp_.max_vel_) / (2 * planner_manager_->pp_.max_acc_)) {
-    // local_target_vel_ = (end_pt_ - init_pt_).normalized() * planner_manager_->pp_.max_vel_ * ((
-    // end_pt_ - local_target_pt_ ).norm() /
-    // ((planner_manager_->pp_.max_vel_*planner_manager_->pp_.max_vel_)/(2*planner_manager_->pp_.max_acc_)));
-    // cout << "A" << endl;
+      pow(planner_manager_->pp_.max_vel_, 2) / (2 * planner_manager_->pp_.max_acc_)) {
     local_target_vel_ = Eigen::Vector3d::Zero();
-  } 
-  
+  }
+
   else {
     local_target_vel_ = planner_manager_->global_data_.getVelocity(t);
-    // cout << "AA" << endl;
   }
 }
 
@@ -508,4 +510,4 @@ void EGOReplanFSM::printFSMExecState() {
   cout << "[FSM]: state: " + state_str[int(exec_state_)] << endl;
 }
 
-}
+} // namespace ego_planner
